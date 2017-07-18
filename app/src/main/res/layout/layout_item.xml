@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.kingberry.liuhao.drag.DraggableLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layout"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:gravity="center"
+    android:background="@drawable/item_select"
+    android:orientation="vertical">
+    <ImageView
+        android:id="@+id/icon"
+        android:scaleType="fitCenter"
+        android:layout_width="50dp"
+        android:layout_height="50dp" />
+    <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="@color/white"
+        android:textSize="15sp" />
+</com.kingberry.liuhao.drag.DraggableLayout>

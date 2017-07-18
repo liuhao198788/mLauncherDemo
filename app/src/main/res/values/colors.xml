@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <color name="gap_line">#e2e2e2</color>
+    <color name="item_bg">#e5e5e5</color>
+    <color name="color_333333">#333333</color>
+    <color name="color_777572">#777572</color>
+    <color name="transparent">#00000000</color>
+    <color name="transparent_half">#58000000</color>
+    
+    <color name="white">#FFFFFF</color>
+    <color name="orange_ff6633">#ff6633</color>
+    
+    <color name="colorPrimary">#3F51B5</color>
+    <color name="colorPrimaryDark">#303F9F</color>
+    <color name="colorAccent">#FF4081</color>
+
+</resources>
