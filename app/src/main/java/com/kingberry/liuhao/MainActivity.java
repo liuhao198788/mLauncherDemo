@@ -1,398 +1,288 @@
-package com.kingberry.liuhao;
+package kingberry.liuhao.launcher;
 
-import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
-import android.os.Bundle;
-import android.support.v7.widget.RecyclerView;
-import android.util.DisplayMetrics;
-import android.util.Log;
-import android.view.View;
-import android.view.Window;
-import android.widget.Toast;
-
-import com.kingberry.liuhao.drag.DeleteItemInterface;
-import com.kingberry.liuhao.drag.DeleteZone;
-import com.kingberry.liuhao.drag.DragController;
-import com.kingberry.liuhao.drag.DragLayer;
-import com.kingberry.liuhao.drag.DragSource;
-import com.kingberry.liuhao.drag.DraggableLayout;
-import com.kingberry.liuhao.drag.ScrollController;
-
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-/**
- * description: 
- * autour: liuhao
- * date: 2017/7/17 12:10
- * update: 2017/7/17
- * version: a
- * */
-public class MainActivity extends Activity implements ScrollController.OnPageChangeListener, DragController.DraggingListener, DeleteItemInterface, View.OnLongClickListener, DemoAdapter.ItemDragListener{
 
-    public static final String TAG="MainActicity";
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.DialogInterface.OnCancelListener;
+import android.content.pm.ResolveInfo;
+import android.net.Uri;
+import android.os.Handler;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewGroup.LayoutParams;
+import android.widget.BaseAdapter;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.TextView;
 
-    RecyclerView mRecyclerView = null;
-    CircleIndicator mIndicator = null;
-    ArrayList<AppItem> mList = new ArrayList<AppItem>();
-    //ArrayList<ResolveInfo> mList = new ArrayList<>();
+public class DragItemAdapter extends BaseAdapter {
+	
+	private String TAG="DragItemAdapter";
+	
+	private Context context ;
+	private List<ResolveInfo> mList;
+	
+	private int mIndex; // 页数下标，标示第几页，从0开始
+    private int mPargerSize;// 每页显示的最大的数量
+	
+	private DragGridView gridView;
+	
+	/** 是否显示底部的ITEM */
+	private boolean isItemShow = false;
 
-    PackageManager pm=null;
+	/** 控制的postion */
+	private int holdPosition;
+	/** 是否改变 */
+	private boolean isChanged = false;
+	/** 是否删除 */
+	private boolean isDelete = false;
+	/** 要删除的position */
+	public int remove_position = -1;
+	
+	/**
+	 * 指定隐藏的position
+	 */
+	private int hidePosition = -1;
+	/** 是否可见 */
+	boolean isVisible = true;
 
-    private HorizontalPageLayoutManager horizhontalPageLayoutManager;
-    ScrollController mScrollController = new ScrollController();
+	private Handler mHandler = new Handler();
+	
+	public DragItemAdapter(Context context, List<ResolveInfo> apps,DragGridView gridView) {
+		this.context = context;
+		this.mList = apps;
+		this.gridView = gridView;
+	}
+	
+	public DragItemAdapter(Context context, List<ResolveInfo> apps,
+            int mIndex, int mPargerSize) {
+		this.context = context;
+		this.mList = apps;
+		this.mIndex=mIndex;
+		this.mPargerSize=mPargerSize;
+	}
 
-    private DemoAdapter mAdapter = null;
-    private int indicatorNumber;
-
-    private DragLayer mDragLayer;
-    private DeleteZone mDeleteZone;
-    private DragController mDragController;
-    //private LinearLayout btnLayout = null;
-
-    //行
-    public static int mRow = 0;
-    //列
-    public static int mColumn = 0;
-
-    //每页显示的最大条目总数
-    public int pageSize = 0;
-
-    //是否可拖拽
-    private boolean isEnableDrag = true;
-
-    /**
-     * @Title: getDpiInfo
-     * @Description: 获取手机的屏幕密度DPI
-     * @param
-     * @return void
+	/**
+     * 先判断数据及的大小是否显示满本页lists.size() > (mIndex + 1)*mPagerSize
+     * 如果满足，则此页就显示最大数量lists的个数
+     * 如果不够显示每页的最大数量，那么剩下几个就显示几个
      */
-    private void getDpiInfo() {
-        // TODO Auto-generated method stub
-        DisplayMetrics metrics = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(metrics);
-        MyParamsCls.Width = metrics.widthPixels;
-        MyParamsCls.Height = metrics.heightPixels;
-    }
-
-
-    private void updateIncatorNum() {
-        int oldNum = indicatorNumber;
-
-        int endPageIndex = oldNum -1;
-        boolean isEnd = mScrollController.getCurrentPageIndex() == endPageIndex ? true : false;
-
-        //refresh indicatorNumber
-        indicatorNumber = (mList.size() / pageSize) + (mList.size() % pageSize == 0 ? 0 : 1);
-        mIndicator.setNumber(indicatorNumber);
-
-        if(indicatorNumber == oldNum + 1 && isEnd){
-            mScrollController.arrowScroll(false);
-        }else if(indicatorNumber == oldNum - 1 && isEnd){
-            mScrollController.arrowScroll(true);
-        }
-    }
-
-    /***********************************************************************************
-    public void clickRemove(View view){
-        mList.remove(mList.size() -1);
-        mAdapter.notifyDataSetChanged();
-
-        updateIncatorNum();
-    }
-
-        public void clickAdd(View view){
-        AppItem item = new AppItem("debug", R.mipmap.launcher2);
-        item.itemPos = mList.size();
-        mList.add(mList.size(), item);
-        mAdapter.notifyDataSetChanged();
-
-        updateIncatorNum();
-    }
-     ************************************************************************************/
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-
-        Log.e(TAG,"onCreate");
-
-        setContentView(R.layout.activity_demo);
-
-        pm = MainActivity.this.getPackageManager();
-
-        initData();
-
-        initDrag();
-
-        initView();
-
-        //btnLayout = (LinearLayout) findViewById(R.id.layout_btn);
-        //btnLayout.setVisibility(View.GONE);
-    }
-
-//    private void initDebug() {
-//        int size = 50;
-//        for (int i = 1; i <= size; i++) {
-//            int resId = getResources().getIdentifier("face_" + i,
-//                    "mipmap", getPackageName());
-//            AppItem item = new AppItem("item"+i, resId);
-//            item.itemPos = i -1;
-//            mList.add(item);
-//        }
-//    }
-
-    private void initData(){
-
-        List<ResolveInfo> apps=getAllApps();
-
-        //List<PackageInfo> apps=getAllApps(MainActivity.this);
-        for (ResolveInfo pkg : apps){
-
-            AppItem appInfo=new AppItem();
-            appInfo.setAppIcon(pkg.activityInfo.loadIcon(pm));
-            appInfo.setAppName((String) pkg.activityInfo.loadLabel(pm));
-            appInfo.setPkgName(pkg.activityInfo.packageName);
-            appInfo.setAppMainAty(pkg.activityInfo.name);
-
-            mList.add(appInfo);
-        }
-    }
-        /**
-     * @Title: getAllApps @Description: 加载所有app @param 参数 @return void
-     * 返回类型 @throws
-     */
-    private List<ResolveInfo> getAllApps() {
-        Intent intent = new Intent(Intent.ACTION_MAIN, null);
-        intent.addCategory(Intent.CATEGORY_LAUNCHER);
-        List<ResolveInfo> allApps = new ArrayList<ResolveInfo>();
-        allApps=getPackageManager().queryIntentActivities(intent, 0);
-        // 调用系统排序，根据name排序
-        // 该排序很重要，否则只能显示系统应用，不能显示第三方应用
-        // 否则，输出的顺序容易乱掉
-        Collections.sort(allApps, new ResolveInfo.DisplayNameComparator(getPackageManager()));
-
-        return allApps;
-    }
-
-    public void onPageChange(int index) {
-        mIndicator.setOffset(index);
-    }
-
-    private void initDrag() {
-        mDragLayer = (DragLayer) findViewById(R.id.demo_draglayer);
-        mDeleteZone = (DeleteZone) findViewById(R.id.demo_del_zone);
-        mDragController = new DragController(this);
-
-        //是为了把dragLayer里面的触摸、拦截事件传给dragController
-        //把很多能力交给dragController处理
-        mDragLayer.setDragController(mDragController);
-        //设置监听
-        mDragLayer.setDraggingListener(MainActivity.this);
-
-        if (mDeleteZone != null) {
-            mDeleteZone.setOnItemDeleted(MainActivity.this);
-            mDeleteZone.setEnabled(true);
-            mDragLayer.setDeleteZoneId(mDeleteZone.getId());
-        }
-
-        mDragController.setDraggingListener(mDragLayer);
-        mDragController.setScrollController(mScrollController);
-    }
-
-    @Override
-    public boolean onLongClick(View view) {
-        if (!view.isInTouchMode() && isEnableDrag) {
-            return false;
-        }
-
-        Lg.d("onLongClick ********************* Drag started");
-        DragSource dragSource = (DragSource) view;
-        mDragController.startDrag(view, dragSource, dragSource, DragController.DRAG_ACTION_MOVE);
-
-        return true;
-    }
-
-    @Override
-    public void onDragStart(DragSource source, Object info, int dragAction) {
-        mDeleteZone.setVisibility(View.VISIBLE);
-        //btnLayout.setVisibility(View.GONE);
-    }
-
-    @Override
-    public void onDragEnd() {
-        mDeleteZone.setVisibility(View.GONE);
-       // btnLayout.setVisibility(View.VISIBLE);
-    }
-
-    @Override
-    public void itemDeleted(DragSource source) {
-
-    }
-
-    private void initView() {
-
-        Log.e(TAG,"mList size = "+mList.size());
-
-        /*
-        *************************************************************************************
-        ****************************动态设置recyleView的列数 START****************************
-         *************************************************************************************/
-        //获取屏幕长宽像素信息
-        getDpiInfo();
-
-        mColumn = (int) Math.floor(MyParamsCls.Width / 200);
-        mRow = (int) Math.floor(MyParamsCls.Height / 200);
-
-        pageSize = mRow * mColumn ;
-
-        Log.e(TAG,"initView -> mColumn ="+mColumn+"  mRow = "+mRow +"  pageSize = "+pageSize);
-         /*
-        *************************************************************************************
-        ****************************动态设置recyleView的列数  END ****************************
-         *************************************************************************************/
-
-        mRecyclerView = (RecyclerView) findViewById(R.id.demo_listview);
-
-        //为recyclerView添加间距
-        SpacesItemDecoration mItemDecoration=new SpacesItemDecoration(MainActivity.this,2,R.color.gap_line);
-        mRecyclerView.addItemDecoration(mItemDecoration);
-
-        mIndicator = (CircleIndicator) findViewById(R.id.demo_indicator);
-        mAdapter = new DemoAdapter(mList, this);
-        mAdapter.setLongClickListener(this);
-        mAdapter.setDragListener(this);
-        mRecyclerView.setAdapter(mAdapter);
-
-        horizhontalPageLayoutManager = new HorizontalPageLayoutManager(mRow, mColumn, this);
-        horizhontalPageLayoutManager.setDragLayer(mDragLayer);
-        indicatorNumber = (mList.size() / pageSize) + (mList.size() % pageSize == 0 ? 0 : 1);
-
-        mRecyclerView.setLayoutManager(horizhontalPageLayoutManager);
-
-        //添加分页
-        mScrollController.setUpRecycleView(mRecyclerView);
-        mScrollController.setOnPageChangeListener(this);
-
-        //添加分页指示器--圆形
-        mIndicator.setNumber(indicatorNumber);
-
-        mDragLayer.setDragView(mRecyclerView);
-    }
-
-    @Override
-    public void onDragStarted(View source) {
-        Log.e( TAG,"onDragStarted soure="+source);
-    }
-
-    @Override
-    public void onDropCompleted(View source, View target, boolean success) {
-        Log.e(TAG,"========onDropCompleted success : " + success);
-
-        if (success && (source != target)) {
-            AppItem sourceItem = ((DraggableLayout) source).getItem();
-            //删除操作
-            if (target instanceof DeleteZone) {
-                if(sourceItem == null){
-                    Log.e(TAG,"sourceItem is null in delete action !!!");
-
-                    return;
-                }
-
-                if (sourceItem.isDeletable()) {
-                    if(mList.contains(sourceItem)){
-                        mList.remove(sourceItem);
-                        mAdapter.notifyDataSetChanged();
-                    }
-                } else {
-                    Toast.makeText(MainActivity.this, "不能删除这个条目！", Toast.LENGTH_SHORT).show();
-                }
-            }
-            //item之间的替换操作
-            else {
-                if(sourceItem == null){
-                    Lg.e("sourceItem is null in replace action !!!");
-                    return;
-                }
-
-                AppItem targetItem = ((DraggableLayout) target).getItem();
-                if(targetItem == null){
-                    Lg.e("targetItem is null in replace action !!!");
-                    return;
-                }
-
-                executeItemReplaceAction(sourceItem, targetItem);
-            }
-        }
-
-        if(mDragLayer.getDraggingListener() != null){
-            mDragLayer.getDraggingListener().onDragEnd();
-        }
-    }
-
-    private void executeItemReplaceAction(AppItem sourceItem, AppItem targetItem) {
-
-        //来源item信息
-        int sourcePos = sourceItem.itemPos;
-
-        //目标item位置
-        int targetPos = targetItem.itemPos;
-
-        Lg.d("sourcePos: " + sourcePos + " targetPos: " + targetPos);
-        //位置交换
-        Collections.swap(mList, sourcePos, targetPos);
-        refreshItemList();
-        mAdapter.notifyDataSetChanged();
-    }
-
-    private void refreshItemList(){
-        for(int i = 0; i < mList.size(); i++){
-            mList.get(i).itemPos = i;
-        }
-    }
-
-
-    /**
-     *  @author liuhao
-     *  @time 2017/7/17  16:21
-     *  @describe  得到所有应用
-     */
-    public static List<PackageInfo> getAllPkgs(Context context) {
-        List<PackageInfo> apps = new ArrayList<PackageInfo>();
-        PackageManager pManager = context.getPackageManager();
-        // 获取手机内所有应用
-        List<PackageInfo> packlist = pManager.getInstalledPackages(0);
-        for (int i = 0; i < packlist.size(); i++) {
-            PackageInfo pak = (PackageInfo) packlist.get(i);
-
-            apps.add(pak);
-            // 判断是否为非系统预装的应用程序
-            // 这里还可以添加系统自带的，这里就先不添加了，如果有需要可以自己添加
-            // if()里的值如果<=0则为自己装的程序，否则为系统工程自带
-            //
-            int appFlag=pak.applicationInfo.flags & pak.applicationInfo.FLAG_SYSTEM;
-
-            /*          <=0则为自己装的程序，否则为系统工程自带
-            ************************************************************************************
-            * ****************得到是否为系统预装应用 或 手动安装的应用*****************************
-            * **********************************************************************************
-             */
-            if (appFlag <= 0) {
-                // 添加自己已经安装的应用程序
-                apps.add(pak);
-            }else{
-
-            }
-
-        }
-        return apps;
-    }
-
+	@Override
+	public int getCount() {
+		// TODO Auto-generated method stub
+		return mList.size() > (mIndex + 1) * mPargerSize ? 
+                mPargerSize : (mList.size() - mIndex*mPargerSize);
+	}
+
+	@Override
+	public Object getItem(int position) {
+		if (mList != null && mList.size() != 0) {
+			mList.get(position + mIndex * mPargerSize);
+		}
+		return null;
+	}
+
+	@Override
+	public long getItemId(int position) {
+		// TODO Auto-generated method stub
+		return position + mIndex * mPargerSize;
+	}
+
+	@Override
+	public View getView(final int position, View convertView, ViewGroup parent) {
+		// TODO Auto-generated method stub
+		ViewHolder holderView = null;
+		View view = null;
+		if (view == null) {
+			holderView = new ViewHolder();
+			view = LayoutInflater.from(context).inflate(R.layout.item_square_layout, parent,false);
+			holderView.appIcon = (ImageView) view.findViewById(R.id.appIcon);
+			holderView.appName = (TextView) view.findViewById(R.id.appName);
+			holderView.deleteIcon = (ImageView) view.findViewById(R.id.deleteIcon);
+
+			LayoutParams mLayoutParams = holderView.appIcon.getLayoutParams();
+			mLayoutParams.width = (int) (MyParamsCls.Width / 7);
+			mLayoutParams.height = (int) (MyParamsCls.Width / 7);
+			holderView.appIcon.setLayoutParams(mLayoutParams);
+
+			view.setTag(holderView);
+		}
+		
+		holderView = (ViewHolder)view.getTag();
+		
+		//重新确定position因为拿到的总是数据源，数据源是分页加载到每页的GridView上的
+        final int pos = position + mIndex * mPargerSize;//假设mPageSiez
+
+        ResolveInfo appInfo=mList.get(pos);
+		holderView.appIcon.setImageDrawable(appInfo.activityInfo.loadIcon(context.getPackageManager()));
+		holderView.appName.setText(appInfo.activityInfo.loadLabel(context.getPackageManager()));
+		holderView.deleteIcon.setOnClickListener(new ImageView.OnClickListener() {
+			public void onClick(View v) {
+				
+				//add by liuhao 0714 start
+				//gridView.isDrag=false;
+				//add by liuhao 0714 end
+				
+				mHandler.post(new Runnable() {
+					public void run() {
+						//删除应用，移出图标
+						if (!MyParamsCls.isAnimaEnd) {
+							return;
+						}
+						notifyDataSetChanged();
+						Log.e(TAG,"onClick postion:"+position);
+					//	gridView.deleteInfo(position);
+						
+						/*******************
+						 * 开始删除应用
+						 * *****************
+						 */
+						
+						final ResolveInfo info=mList.get(position);
+						AlertDialog dlg=new AlertDialog.Builder(context)
+								.setTitle("要删除 "+"\""+info.activityInfo.loadLabel(context.getPackageManager())+"\"吗?")
+								.setMessage("删除此应用将同时删除其数据")
+								.setCancelable(true)
+								.setOnCancelListener(new OnCancelListener(){
+									public void onCancel(DialogInterface dialog) {
+										dialog.dismiss();
+//										return;
+									}
+								})
+								.setPositiveButton("确认",  
+				                new DialogInterface.OnClickListener() {  
+				                    public void onClick(DialogInterface dialog, int whichButton) {  
+				                    	unstallApp(info.activityInfo.packageName);
+				                    }  
+				                })		
+								.setNegativeButton("取消",  
+				                new DialogInterface.OnClickListener() {  
+				                    public void onClick(DialogInterface dialog, int whichButton) { 
+										dialog.dismiss();
+//										return;
+				                    }  
+				                })
+								.show();
+								
+					}
+				});
+			}
+		});
+		
+//		if (position == getCount()-1){
+//			if (convertView == null) {
+//				convertView = view;
+//			}
+//			convertView.setEnabled(false);
+//			convertView.setFocusable(false);
+//			convertView.setClickable(false);
+//		}
+		
+		if(remove_position == position){
+			deletePostion(position);
+		}
+		if (!isDelete) {
+			holderView.deleteIcon.setVisibility(View.GONE);
+		}
+		else
+		{
+			holderView.deleteIcon.setVisibility(View.VISIBLE);
+		}
+		
+		if (hidePosition == position) {
+			view.setVisibility(View.INVISIBLE);
+		}else {
+			view.setVisibility(View.VISIBLE);
+		}
+		
+		return view;
+	}
+	
+	//卸载应用程序  
+	public void unstallApp(String packageName){  
+	    Intent uninstall_intent = new Intent();  
+	    uninstall_intent.setAction(Intent.ACTION_DELETE);  
+	    uninstall_intent.setData(Uri.parse("package:"+packageName));  
+	    context.startActivity(uninstall_intent);  
+	}  
+	
+	public void setisDelete(boolean isDelete)
+	{
+		this.isDelete = isDelete;
+	}
+
+	/** 设置删除的position */
+	public void setRemove(int position) {
+		remove_position = position;
+		notifyDataSetChanged();
+	}
+
+	/** 获取是否可见 */
+	public boolean isVisible() {
+		return isVisible;
+	}
+
+	/** 设置是否可见 */
+	public void setVisible(boolean visible) {
+		isVisible = visible;
+	}
+	/** 显示放下的ITEM */
+	public void setShowDropItem(boolean show) {
+		isItemShow = show;
+	}
+
+	public void setHidePosition(int position) {
+		// TODO Auto-generated method stub
+		this.hidePosition = position;
+		notifyDataSetChanged();
+	}
+	
+	/**
+	 * 删除某个position
+	 * @param position
+	 */
+	public void deletePostion(int position)
+	{
+		mList.remove(position);
+		hidePosition = -1;
+		notifyDataSetChanged();
+	}
+	
+	/**  
+	* @Title: exchange  
+	* @Description: 拖动变更排序 
+	* @param @param dragPostion
+	* @param @param dropPostion    参数  
+	* @return void    返回类型  
+	* @throws  
+	*/  
+	public void exchange(int dragPostion, int dropPostion) {
+		holdPosition = dropPostion;
+		ResolveInfo appInfo=mList.get(dragPostion);
+		Log.e(TAG, "startPostion=" + dragPostion + ";endPosition=" + dropPostion);
+		if (dragPostion < dropPostion) {
+			mList.add(dropPostion + 1, appInfo);
+			mList.remove(dragPostion);
+		} else {
+			mList.add(dropPostion, appInfo);
+			mList.remove(dragPostion + 1);
+		}
+		isChanged = true;
+		notifyDataSetChanged();
+	}
+
+	
+	class ViewHolder
+	{
+		private TextView appName;
+		private ImageView appIcon;
+		private ImageView deleteIcon;
+	}
 
 }
