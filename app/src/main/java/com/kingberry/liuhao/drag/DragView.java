@@ -13,11 +13,14 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 
 /**
- * Created by Administrator on 2017/7/17.
+ * A DragView is a special view used by a DragController. During a drag operation, what is actually moving
+ * on the screen is a DragView. A DragView is constructed using a bitmap of the view the user really
+ * wants to move.
+ *
  */
 
-public class DragView extends View {
-
+public class DragView extends View
+{
     // Number of pixels to add to the dragged item for scaling.  Should be even for pixel alignment.
     private static final int DRAG_SCALE = 40;   // In Launcher, value is 40
 
@@ -49,7 +52,7 @@ public class DragView extends View {
         super(context);
         mWindowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
 
-        //����һ���������ã���item����һ���, ע�⿴DRAG_SCALE��
+        //设置一个矩阵（作用：让item缩放一点点, 注意看DRAG_SCALE）
         Matrix scale = new Matrix();
         float scaleFactor = width;
         scaleFactor = mScale = (scaleFactor + DRAG_SCALE) / scaleFactor;
@@ -59,7 +62,7 @@ public class DragView extends View {
 //                ,left, top, width, height, scaleFactor));
         mBitmap = Bitmap.createBitmap(bitmap, left, top, width, height, scale, true);
 
-        // ��������С��λͼ�еĵ�Ĵ����¼�
+        // 按比例缩小的位图中的点的触摸事件
         mRegistrationX = registrationX + (DRAG_SCALE / 2);
         mRegistrationY = registrationY + (DRAG_SCALE / 2);
     }
@@ -154,5 +157,5 @@ public class DragView extends View {
     void remove() {
         mWindowManager.removeView(this);
     }
-
 }
+

@@ -4,7 +4,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -69,7 +68,7 @@ public class DemoAdapter extends RecyclerView.Adapter<DemoAdapter.BaseViewHolder
                 // 应用的包名
                 String pkg = appItem.getPkgName();
 
-                Log.e(TAG,"pkg = "+pkg);
+               // Log.e(TAG,"pkg = "+pkg);
                 //应用的主Activity
                 String cls = appItem.getAppMainAty();
                 ComponentName componentName = new ComponentName(pkg, cls);
@@ -79,7 +78,7 @@ public class DemoAdapter extends RecyclerView.Adapter<DemoAdapter.BaseViewHolder
             }
         });
 
-        Log.e("DemoAdapter","appName = "+holder.tv_title.getText());
+        //Log.e("DemoAdapter","appName = "+holder.tv_title.getText());
 }
 
     private ItemDragListener dragListener = null;

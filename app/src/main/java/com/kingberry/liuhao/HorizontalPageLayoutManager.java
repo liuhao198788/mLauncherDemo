@@ -63,6 +63,7 @@ public class HorizontalPageLayoutManager extends RecyclerView.LayoutManager {
     @Override
     public int scrollHorizontallyBy(int dx, RecyclerView.Recycler recycler, RecyclerView.State state) {
         //Temporarily detach and scrap all currently attached child views.
+
         detachAndScrapAttachedViews(recycler);
         int newX = offsetX + dx;
         int result = dx;

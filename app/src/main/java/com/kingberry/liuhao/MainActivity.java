@@ -1,15 +1,14 @@
 package com.kingberry.liuhao;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.pm.PackageInfo;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v7.widget.RecyclerView;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -25,9 +24,12 @@ import com.kingberry.liuhao.drag.DragSource;
 import com.kingberry.liuhao.drag.DraggableLayout;
 import com.kingberry.liuhao.drag.ScrollController;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static com.kingberry.liuhao.AppUtils.mDATA_NAME;
+import static com.kingberry.liuhao.AppUtils.strFirstFlag;
+import static com.kingberry.liuhao.AppUtils.strPkgs;
 
 /**
  * description: 
@@ -40,9 +42,12 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
 
     public static final String TAG="MainActicity";
 
+    /*判断是否为第一次登陆*/
+    private boolean isFirstLoad=true;
+
     RecyclerView mRecyclerView = null;
     CircleIndicator mIndicator = null;
-    ArrayList<AppItem> mList = new ArrayList<AppItem>();
+
     //ArrayList<ResolveInfo> mList = new ArrayList<>();
 
     PackageManager pm=null;
@@ -69,6 +74,8 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
     //是否可拖拽
     private boolean isEnableDrag = true;
 
+    private Handler mHandler=new Handler();
+
     /**
      * @Title: getDpiInfo
      * @Description: 获取手机的屏幕密度DPI
@@ -91,7 +98,7 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
         boolean isEnd = mScrollController.getCurrentPageIndex() == endPageIndex ? true : false;
 
         //refresh indicatorNumber
-        indicatorNumber = (mList.size() / pageSize) + (mList.size() % pageSize == 0 ? 0 : 1);
+        indicatorNumber = (MyParamsCls.mAppList.size() / pageSize) + (MyParamsCls.mAppList.size() % pageSize == 0 ? 0 : 1);
         mIndicator.setNumber(indicatorNumber);
 
         if(indicatorNumber == oldNum + 1 && isEnd){
@@ -124,11 +131,17 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
 
-        Log.e(TAG,"onCreate");
-
         setContentView(R.layout.activity_demo);
 
         pm = MainActivity.this.getPackageManager();
+
+        //btnLayout = (LinearLayout) findViewById(R.id.layout_btn);
+        //btnLayout.setVisibility(View.GONE);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
 
         initData();
 
@@ -136,11 +149,22 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
 
         initView();
 
-        //btnLayout = (LinearLayout) findViewById(R.id.layout_btn);
-        //btnLayout.setVisibility(View.GONE);
     }
 
-//    private void initDebug() {
+
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+
+        //Log.e(TAG,"onPause get pks="+sp.getString(strPkgs,""));
+        AppUtils.saveData(MainActivity.this);
+
+        //add by liuhao 0718 end ********************************
+    }
+
+    //    private void initDebug() {
 //        int size = 50;
 //        for (int i = 1; i <= size; i++) {
 //            int resId = getResources().getIdentifier("face_" + i,
@@ -153,36 +177,56 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
 
     private void initData(){
 
-        List<ResolveInfo> apps=getAllApps();
+        SharedPreferences sp=getSharedPreferences(mDATA_NAME, Activity.MODE_PRIVATE);
+        isFirstLoad=sp.getBoolean(strFirstFlag,true);
 
-        //List<PackageInfo> apps=getAllApps(MainActivity.this);
-        for (ResolveInfo pkg : apps){
+        if(isFirstLoad){
+            List<ResolveInfo> apps=AppUtils.getAllApps(MainActivity.this);
+            //List<PackageInfo> apps=getAllApps(MainActivity.this);
+            int  i=0;
+            for (ResolveInfo pkg : apps){
 
-            AppItem appInfo=new AppItem();
-            appInfo.setAppIcon(pkg.activityInfo.loadIcon(pm));
-            appInfo.setAppName((String) pkg.activityInfo.loadLabel(pm));
-            appInfo.setPkgName(pkg.activityInfo.packageName);
-            appInfo.setAppMainAty(pkg.activityInfo.name);
-
-            mList.add(appInfo);
+                AppItem appInfo=new AppItem();
+                appInfo.setAppIcon(pkg.activityInfo.loadIcon(pm));
+                appInfo.setAppName((String) pkg.activityInfo.loadLabel(pm));
+                appInfo.setPkgName(pkg.activityInfo.packageName);
+                appInfo.setAppMainAty(pkg.activityInfo.name);
+                appInfo.itemPos=i;
+                MyParamsCls.mAppList.add(appInfo);
+                i++;
+            }
         }
-    }
-        /**
-     * @Title: getAllApps @Description: 加载所有app @param 参数 @return void
-     * 返回类型 @throws
-     */
-    private List<ResolveInfo> getAllApps() {
-        Intent intent = new Intent(Intent.ACTION_MAIN, null);
-        intent.addCategory(Intent.CATEGORY_LAUNCHER);
-        List<ResolveInfo> allApps = new ArrayList<ResolveInfo>();
-        allApps=getPackageManager().queryIntentActivities(intent, 0);
-        // 调用系统排序，根据name排序
-        // 该排序很重要，否则只能显示系统应用，不能显示第三方应用
-        // 否则，输出的顺序容易乱掉
-        Collections.sort(allApps, new ResolveInfo.DisplayNameComparator(getPackageManager()));
+        else{
 
-        return allApps;
+            //Log.e(TAG,"*********NO FIRST*********");
+            MyParamsCls.mAppList.clear();
+            //MyParamsCls.mAppList.removeAll(MyParamsCls.mAppList);
+
+            MyParamsCls.appPkgs=sp.getString(strPkgs,"");
+
+            //Log.e(TAG,"initData get pks="+sp.getString(strPkgs,""));
+
+            String[] pksArray=MyParamsCls.appPkgs.split(";");
+
+            for (int i = 0; i < pksArray.length; i++) {
+
+//                Log.e(TAG,"pksArray["+i+"] = "+pksArray[i]);
+                //根据包名取得应用全部信息ResolveInfo
+                ResolveInfo resolveInfo = AppUtils.findAppByPackageName(MainActivity.this,pksArray[i]);
+
+                AppItem appInfo=new AppItem();
+                appInfo.setAppIcon(resolveInfo.activityInfo.loadIcon(pm));
+                appInfo.setAppName((String) resolveInfo.activityInfo.loadLabel(pm));
+                appInfo.setPkgName(resolveInfo.activityInfo.packageName);
+                appInfo.setAppMainAty(resolveInfo.activityInfo.name);
+                appInfo.itemPos=i;
+                MyParamsCls.mAppList.add(i,appInfo);
+            }
+        }
+
     }
+
+
 
     public void onPageChange(int index) {
         mIndicator.setOffset(index);
@@ -224,7 +268,29 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
 
     @Override
     public void onDragStart(DragSource source, Object info, int dragAction) {
-        mDeleteZone.setVisibility(View.VISIBLE);
+        AppItem sourceItem=((DraggableLayout)source).getItem();
+        try {
+            ApplicationInfo appInfo = pm.getApplicationInfo(sourceItem.getPkgName(), PackageManager.MATCH_UNINSTALLED_PACKAGES);
+            Log.e(TAG, "appInfo.flags :" + appInfo.flags);
+            //系统应用
+            if ((appInfo.flags & ApplicationInfo.FLAG_SYSTEM) > 0) {
+                mDeleteZone.setVisibility(View.GONE);
+//                Toast.makeText(MainActivity.this, "系统应用，不能卸载 ！", Toast.LENGTH_SHORT).show();
+//                return;
+            } else {
+                if (appInfo.packageName.contains("com.kingberry.liuhao")) {
+                    mDeleteZone.setVisibility(View.GONE);
+//                    Toast.makeText(MainActivity.this, "应用 ：" + appInfo.loadLabel(pm) + " 不能被卸载！", Toast.LENGTH_SHORT).show();
+//                    return;
+                }else {
+                    mDeleteZone.setVisibility(View.VISIBLE);
+                }
+            }
+        }catch (PackageManager.NameNotFoundException e) {
+           // Toast.makeText(MainActivity.this,"找不到该应用~",Toast.LENGTH_LONG).show();
+            e.printStackTrace();
+        }
+      //  mDeleteZone.setVisibility(View.VISIBLE);
         //btnLayout.setVisibility(View.GONE);
     }
 
@@ -241,7 +307,7 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
 
     private void initView() {
 
-        Log.e(TAG,"mList size = "+mList.size());
+        Log.e(TAG,"mList size = "+MyParamsCls.mAppList.size());
 
         /*
         *************************************************************************************
@@ -264,18 +330,18 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
         mRecyclerView = (RecyclerView) findViewById(R.id.demo_listview);
 
         //为recyclerView添加间距
-        SpacesItemDecoration mItemDecoration=new SpacesItemDecoration(MainActivity.this,2,R.color.gap_line);
+        SpacesItemDecoration mItemDecoration=new SpacesItemDecoration(MainActivity.this,2,R.color.color_777572);
         mRecyclerView.addItemDecoration(mItemDecoration);
 
         mIndicator = (CircleIndicator) findViewById(R.id.demo_indicator);
-        mAdapter = new DemoAdapter(mList, this);
+        mAdapter = new DemoAdapter(MyParamsCls.mAppList, this);
         mAdapter.setLongClickListener(this);
         mAdapter.setDragListener(this);
         mRecyclerView.setAdapter(mAdapter);
 
         horizhontalPageLayoutManager = new HorizontalPageLayoutManager(mRow, mColumn, this);
         horizhontalPageLayoutManager.setDragLayer(mDragLayer);
-        indicatorNumber = (mList.size() / pageSize) + (mList.size() % pageSize == 0 ? 0 : 1);
+        indicatorNumber = (MyParamsCls.mAppList.size() / pageSize) + (MyParamsCls.mAppList.size() % pageSize == 0 ? 0 : 1);
 
         mRecyclerView.setLayoutManager(horizhontalPageLayoutManager);
 
@@ -309,35 +375,22 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
                 }
 
                 if (sourceItem.isDeletable()) {
-                    if(mList.contains(sourceItem)){
+                    if(MyParamsCls.mAppList.contains(sourceItem)){
 
-                        AlertDialog dlg=new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("要删除 "+"\""+sourceItem.getAppName()+"\"吗?")
-                                .setMessage("删除此应用将同时删除其数据")
-                                .setCancelable(true)
-                                .setOnCancelListener(new DialogInterface.OnCancelListener(){
-                                    public void onCancel(DialogInterface dialog) {
-                                        dialog.dismiss();
-                                       // return;
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        unstallApp(sourceItem.getPkgName());
+                                        MyParamsCls.mAppList.remove(sourceItem);
+                                        mAdapter.notifyDataSetChanged();
                                     }
-                                })
-                                .setPositiveButton("确认",new DialogInterface.OnClickListener() {
-                                            public void onClick(DialogInterface dialog, int whichButton) {
-                                                //unstallApp(info.activityInfo.packageName);
-                                                unstallApp(sourceItem.getPkgName());
+                                });
+                            }
+                        }).start();
 
-                                                mList.remove(sourceItem);
-                                                mAdapter.notifyDataSetChanged();
-
-                                            }
-                                        })
-                                .setNegativeButton("取消",new DialogInterface.OnClickListener() {
-                                            public void onClick(DialogInterface dialog, int whichButton) {
-                                                dialog.dismiss();
-                                               // return;
-                                            }
-                                        })
-                                .show();
                     }
                 } else {
                     Toast.makeText(MainActivity.this, "不能删除这个条目！", Toast.LENGTH_SHORT).show();
@@ -375,14 +428,14 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
 
         Lg.d("sourcePos: " + sourcePos + " targetPos: " + targetPos);
         //位置交换
-        Collections.swap(mList, sourcePos, targetPos);
+        Collections.swap(MyParamsCls.mAppList, sourcePos, targetPos);
         refreshItemList();
         mAdapter.notifyDataSetChanged();
     }
 
     private void refreshItemList(){
-        for(int i = 0; i < mList.size(); i++){
-            mList.get(i).itemPos = i;
+        for(int i = 0; i < MyParamsCls.mAppList.size(); i++){
+            MyParamsCls.mAppList.get(i).itemPos = i;
         }
     }
 
@@ -393,43 +446,5 @@ public class MainActivity extends Activity implements ScrollController.OnPageCha
         uninstall_intent.setData(Uri.parse("package:"+packageName));
         MainActivity.this.startActivity(uninstall_intent);
     }
-
-
-    /**
-     *  @author liuhao
-     *  @time 2017/7/17  16:21
-     *  @describe  得到所有应用
-     */
-    public static List<PackageInfo> getAllPkgs(Context context) {
-        List<PackageInfo> apps = new ArrayList<PackageInfo>();
-        PackageManager pManager = context.getPackageManager();
-        // 获取手机内所有应用
-        List<PackageInfo> packlist = pManager.getInstalledPackages(0);
-        for (int i = 0; i < packlist.size(); i++) {
-            PackageInfo pak = (PackageInfo) packlist.get(i);
-
-            apps.add(pak);
-            // 判断是否为非系统预装的应用程序
-            // 这里还可以添加系统自带的，这里就先不添加了，如果有需要可以自己添加
-            // if()里的值如果<=0则为自己装的程序，否则为系统工程自带
-            //
-            int appFlag=pak.applicationInfo.flags & pak.applicationInfo.FLAG_SYSTEM;
-
-            /*          <=0则为自己装的程序，否则为系统工程自带
-            ************************************************************************************
-            * ****************得到是否为系统预装应用 或 手动安装的应用*****************************
-            * **********************************************************************************
-             */
-            if (appFlag <= 0) {
-                // 添加自己已经安装的应用程序
-                apps.add(pak);
-            }else{
-
-            }
-
-        }
-        return apps;
-    }
-
 
 }
